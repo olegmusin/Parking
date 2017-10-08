@@ -18,11 +18,13 @@
     },
     "Parking": {
       "commandName": "Project",
+      "workingDirectory": "C:\\Repositories\\Projects\\Parking\\Parking",
       "launchBrowser": true,
+      "launchUrl": "http://localhost:9000/",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
-      "applicationUrl": "http://localhost:58439/"
+      "applicationUrl": "http://localhost:9000/"
     }
   }
 }

@@ -1,37 +1,53 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Parking.Data;
-using Parking.Services;
+using Microsoft.Extensions.Logging;
+using ParkingApp.Data.Domain;
+using ParkingApp.Data.Domain.Abstract;
+using ParkingApp.Data.Domain.Identity;
+using ParkingApp.Services;
 
-namespace Parking
+namespace ParkingApp
 {
     public class Startup
     {
-        public Startup(IConfiguration configuration)
+        IConfigurationRoot _config;
+        private IHostingEnvironment _env;
+
+        public Startup(IHostingEnvironment env)
         {
-            Configuration = configuration;
+            var builder = new ConfigurationBuilder()
+                 .SetBasePath(env.ContentRootPath)
+                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                 .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true)
+                 .AddEnvironmentVariables();
+            _config = builder.Build();
+            _env = env;
         }
 
-        public IConfiguration Configuration { get; }
-
+       
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
+            services.AddSingleton(_config);
+            services.AddDbContext<ParkingDbContext>();
+            services.AddTransient<IRepository, Repository<ParkingDbContext>>();
+            services.AddTransient<ParkingIdentityInitializer>();
+            services.AddTransient<ParkingDbInitializer>();
 
-            services.AddIdentity<ApplicationUser, IdentityRole>()
-                .AddEntityFrameworkStores<ApplicationDbContext>()
+
+            services.AddIdentity<AppUser, IdentityRole>()
+                .AddEntityFrameworkStores<ParkingDbContext>()
                 .AddDefaultTokenProviders();
+            services.AddMemoryCache();
+
+            services.AddAuthorization(cfg =>
+            {
+                cfg.AddPolicy("SuperUsers", p => p.RequireClaim("SuperUser", "True"));
+                cfg.AddPolicy("Users", p => p.RequireClaim("User", "True"));
+            });
 
             services.AddMvc()
                 .AddRazorPagesOptions(options =>
@@ -46,9 +62,15 @@ namespace Parking
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app,
+                              ILoggerFactory loggerFactory,
+                              ParkingIdentityInitializer identitySeeder,
+                              ParkingDbInitializer seeder)
         {
-            if (env.IsDevelopment())
+            loggerFactory.AddConsole(_config.GetSection("Logging"));
+            loggerFactory.AddDebug();
+
+            if (_env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
                 app.UseBrowserLink();
@@ -59,16 +81,17 @@ namespace Parking
                 app.UseExceptionHandler("/Error");
             }
 
+            app.UseAuthentication();
+            app.UseDefaultFiles();
             app.UseStaticFiles();
 
-            app.UseAuthentication();
+            app.UseMvc(routes => routes.MapRoute(
+                name: "default",
+                template: "{controller}/{action=Index}/{id?}"));
 
-            app.UseMvc(routes =>
-            {
-                routes.MapRoute(
-                    name: "default",
-                    template: "{controller}/{action=Index}/{id?}");
-            });
+            //Sample data pre-seed
+            seeder.Seed().Wait();
+            identitySeeder.Seed().Wait();
         }
     }
 }

@@ -1,11 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
-using Parking.Services;
+using ParkingApp.Services;
 
-namespace Parking.Services
+namespace ParkingApp.Extensions
 {
     public static class EmailSenderExtensions
     {
